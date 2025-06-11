@@ -71,7 +71,8 @@ Installwizard::Installwizard(QWidget *parent) :
             createDefaultPartitions(drive);
     });
 }
-   QString Installwizard::getUserHome() {
+
+QString Installwizard::getUserHome() {
     QString userHome;
 
     // Use HOME env variable if not root
@@ -134,7 +135,7 @@ void Installwizard::downloadISO(QProgressBar *progressBar) {
             // Set file permissions: readable by everyone
             QFile::setPermissions(finalIsoPath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
 
-            QMessageBox::information(this, "Success", "Arch Linux ISO downloaded successfully\nto: " + finalIsoPath + " \nNext is Installing depencies and extracting ISO...");
+            QMessageBox::information(this, "Success", "Arch Linux ISO downloaded successfully\nto: " + finalIsoPath + " \nNext is Installing dependencies and extracting ISO...");
             installDependencies();
 
         } else {
