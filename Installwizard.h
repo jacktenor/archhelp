@@ -26,7 +26,6 @@ private:
     QNetworkAccessManager *networkManager;
     QString selectedDrive;  // 🧠 TRACK THE CURRENT DRIVE
     QString getUserHome();
-    void extracted(QStringList &drives);
     void populateDrives(); // Populate the dropdown with available drives
     void mountPartitions(const QString &drive);
     // Remove the parameter from installGrubAsync since we won't need one.
@@ -36,11 +35,12 @@ private:
     void mountISO();
     void on_installButton_clicked();
     void bindSystemDirectories();
-    void chrootInstallBase();
     void forceUnmount(const QString &mountPoint);
     // Declare the methods that were missing
     QStringList getAvailableDrives();        // Detect available drives
     void prepareDrive(const QString &drive);   // Prepare the selected drive
+    void populatePartitionTable(const QString &drive); // new
+    void createDefaultPartitions(const QString &drive); // new example
 };
 
 #endif // INSTALLWIZARD_H
