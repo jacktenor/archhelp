@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <QStandardPaths>
 #include <QThread>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 
 Installwizard::Installwizard(QWidget *parent) :
     QWizard(parent),
@@ -44,13 +46,29 @@ Installwizard::Installwizard(QWidget *parent) :
         this, &Installwizard::on_installButton_clicked);
 
     connect(this, &QWizard::currentIdChanged, this, [this](int id) {
-        if (id == 2) {
+        if (id == 2) { // partition page
+            QString drive = ui->driveDropdown->currentText().mid(5);
+            if (!drive.isEmpty())
+                populatePartitionTable(drive);
+        }
+        if (id == 3) { // user setup page
             if (ui->comboDesktopEnvironment->count() == 0) {
                 ui->comboDesktopEnvironment->addItems({
                     "GNOME", "KDE Plasma", "XFCE", "LXQt", "Cinnamon", "MATE", "i3"
                 });
             }
         }
+    });
+
+    connect(ui->partRefreshButton, &QPushButton::clicked, this, [this]() {
+        QString drive = ui->driveDropdown->currentText().mid(5);
+        populatePartitionTable(drive);
+    });
+
+    connect(ui->createPartButton, &QPushButton::clicked, this, [this]() {
+        QString drive = ui->driveDropdown->currentText().mid(5);
+        if (!drive.isEmpty())
+            createDefaultPartitions(drive);
     });
 }
    QString Installwizard::getUserHome() {
@@ -286,6 +304,45 @@ void Installwizard::prepareDrive(const QString &drive) {
     });
 
     thread->start();
+}
+
+void Installwizard::populatePartitionTable(const QString &drive) {
+    QProcess process;
+    QString device = QString("/dev/%1").arg(drive);
+    process.start("lsblk", QStringList() << "-o" << "NAME,SIZE,TYPE,MOUNTPOINT" << device);
+    process.waitForFinished();
+    QString output = process.readAllStandardOutput();
+
+    ui->treePartitions->clear();
+    QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+    for (const QString &line : lines.mid(1)) { // skip header
+        QStringList cols = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (cols.size() >= 4) {
+            QTreeWidgetItem *item = new QTreeWidgetItem(ui->treePartitions);
+            item->setText(0, cols.at(0));
+            item->setText(1, cols.at(1));
+            item->setText(2, cols.at(2));
+            item->setText(3, cols.at(3));
+        }
+    }
+}
+
+void Installwizard::createDefaultPartitions(const QString &drive) {
+    QProcess process;
+    QString device = QString("/dev/%1").arg(drive);
+    QStringList cmds = {
+        QString("sudo parted %1 --script mklabel gpt").arg(device),
+        QString("sudo parted %1 --script mkpart ESP fat32 1MiB 513MiB").arg(device),
+        QString("sudo parted %1 --script set 1 esp on").arg(device),
+        QString("sudo parted %1 --script mkpart primary ext4 513MiB 100%%").arg(device)
+    };
+
+    for (const QString &cmd : cmds) {
+        process.start("/bin/bash", QStringList() << "-c" << cmd);
+        process.waitForFinished();
+    }
+
+    populatePartitionTable(drive);
 }
 
 

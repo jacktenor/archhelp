@@ -41,6 +41,8 @@ private:
     // Declare the methods that were missing
     QStringList getAvailableDrives();        // Detect available drives
     void prepareDrive(const QString &drive);   // Prepare the selected drive
+    void populatePartitionTable(const QString &drive); // new
+    void createDefaultPartitions(const QString &drive); // new example
 };
 
 #endif // INSTALLWIZARD_H
