@@ -43,7 +43,6 @@
       <family>Noto Sans</family>
       <pointsize>12</pointsize>
       <italic>false</italic>
-      <fontweight>DemiBold</fontweight>
      </font>
     </property>
     <property name="styleSheet">
@@ -126,7 +125,7 @@
      <string>Refresh</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="prepareButton">
+  <widget class="QPushButton" name="prepareButton">
     <property name="geometry">
      <rect>
       <x>242</x>
@@ -139,7 +138,7 @@
      <string>Prepare Drive</string>
     </property>
    </widget>
-   <widget class="QPlainTextEdit" name="logWidget">
+  <widget class="QPlainTextEdit" name="logWidget">
     <property name="geometry">
      <rect>
       <x>88</x>
@@ -147,6 +146,80 @@
       <width>300</width>
       <height>125</height>
      </rect>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QWizardPage" name="partitionPage">
+   <property name="title">
+    <string>Partition Layout</string>
+   </property>
+   <widget class="QLabel" name="driveLabel">
+    <property name="geometry">
+     <rect>
+      <x>40</x>
+      <y>10</y>
+      <width>380</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Drive:</string>
+    </property>
+   </widget>
+   <widget class="QTreeWidget" name="treePartitions">
+    <column>
+     <property name="text">
+      <string>Name</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>Size</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>Type</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
+      <string>Mount</string>
+     </property>
+    </column>
+    <property name="geometry">
+     <rect>
+      <x>40</x>
+      <y>30</y>
+      <width>380</width>
+      <height>180</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="partRefreshButton">
+    <property name="geometry">
+     <rect>
+      <x>80</x>
+      <y>220</y>
+      <width>100</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Refresh</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="createPartButton">
+    <property name="geometry">
+     <rect>
+      <x>220</x>
+      <y>220</y>
+      <width>160</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Create Default Partitions</string>
     </property>
    </widget>
   </widget>
