@@ -43,6 +43,7 @@
       <family>Noto Sans</family>
       <pointsize>12</pointsize>
       <italic>false</italic>
+      <fontweight>DemiBold</fontweight>
      </font>
     </property>
     <property name="styleSheet">
@@ -125,7 +126,7 @@
      <string>Refresh</string>
     </property>
    </widget>
-  <widget class="QPushButton" name="prepareButton">
+   <widget class="QPushButton" name="prepareButton">
     <property name="geometry">
      <rect>
       <x>242</x>
@@ -138,7 +139,7 @@
      <string>Prepare Drive</string>
     </property>
    </widget>
-  <widget class="QPlainTextEdit" name="logWidget">
+   <widget class="QPlainTextEdit" name="logWidget">
     <property name="geometry">
      <rect>
       <x>88</x>
@@ -150,23 +151,34 @@
    </widget>
   </widget>
   <widget class="QWizardPage" name="partitionPage">
-   <property name="title">
-    <string>Partition Layout</string>
-   </property>
    <widget class="QLabel" name="driveLabel">
     <property name="geometry">
      <rect>
-      <x>40</x>
-      <y>10</y>
-      <width>380</width>
-      <height>16</height>
+      <x>32</x>
+      <y>62</y>
+      <width>420</width>
+      <height>15</height>
      </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">font: 600 10pt &quot;Noto Sans&quot;;</string>
     </property>
     <property name="text">
      <string>Drive:</string>
     </property>
+    <property name="alignment">
+     <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+    </property>
    </widget>
    <widget class="QTreeWidget" name="treePartitions">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>84</y>
+      <width>420</width>
+      <height>175</height>
+     </rect>
+    </property>
     <column>
      <property name="text">
       <string>Name</string>
@@ -187,21 +199,13 @@
       <string>Mount</string>
      </property>
     </column>
-    <property name="geometry">
-     <rect>
-      <x>40</x>
-      <y>30</y>
-      <width>380</width>
-      <height>180</height>
-     </rect>
-    </property>
    </widget>
    <widget class="QPushButton" name="partRefreshButton">
     <property name="geometry">
      <rect>
-      <x>80</x>
-      <y>220</y>
-      <width>100</width>
+      <x>228</x>
+      <y>276</y>
+      <width>80</width>
       <height>30</height>
      </rect>
     </property>
@@ -212,8 +216,8 @@
    <widget class="QPushButton" name="createPartButton">
     <property name="geometry">
      <rect>
-      <x>220</x>
-      <y>220</y>
+      <x>314</x>
+      <y>276</y>
       <width>160</width>
       <height>30</height>
      </rect>
@@ -222,13 +226,40 @@
      <string>Create Default Partitions</string>
     </property>
    </widget>
+   <widget class="QLabel" name="label_5">
+    <property name="geometry">
+     <rect>
+      <x>188</x>
+      <y>20</y>
+      <width>100</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Noto Sans</family>
+      <pointsize>12</pointsize>
+      <italic>false</italic>
+      <fontweight>DemiBold</fontweight>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">font: 600 12pt &quot;Noto Sans&quot;;</string>
+    </property>
+    <property name="text">
+     <string>Partitioning</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignmentFlag::AlignCenter</set>
+    </property>
+   </widget>
   </widget>
   <widget class="QWizardPage" name="wizardPage_3">
    <widget class="QWidget" name="verticalLayoutWidget">
     <property name="geometry">
      <rect>
       <x>44</x>
-      <y>34</y>
+      <y>30</y>
       <width>221</width>
       <height>29</height>
      </rect>
@@ -254,7 +285,7 @@
     <property name="geometry">
      <rect>
       <x>286</x>
-      <y>34</y>
+      <y>30</y>
       <width>141</width>
       <height>31</height>
      </rect>
@@ -336,7 +367,7 @@
       <x>146</x>
       <y>74</y>
       <width>107</width>
-      <height>139</height>
+      <height>143</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -400,7 +431,7 @@
       <x>128</x>
       <y>256</y>
       <width>229</width>
-      <height>55</height>
+      <height>72</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout_5">
