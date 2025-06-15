@@ -36,6 +36,7 @@ private:
     void on_installButton_clicked();
     void bindSystemDirectories();
     void forceUnmount(const QString &mountPoint);
+    void unmountDrive(const QString &drive);
     // Declare the methods that were missing
     QStringList getAvailableDrives();        // Detect available drives
     void prepareDrive(const QString &drive);   // Prepare the selected drive
