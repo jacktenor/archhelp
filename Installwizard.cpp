@@ -675,7 +675,6 @@ void Installwizard::installGrub(const QString &drive) {
         return;
     }
 
-
 void Installwizard::on_installButton_clicked() {
     QString username = ui->lineEditUsername->text().trimmed();
     QString password = ui->lineEditPassword->text();
@@ -707,7 +706,6 @@ void Installwizard::on_installButton_clicked() {
 
     SystemWorker *worker = new SystemWorker;
     worker->setParameters(selectedDrive, username, password, rootPassword, desktopEnv);
-
 
     QThread *thread = new QThread;
     worker->moveToThread(thread);
