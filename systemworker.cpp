@@ -37,6 +37,7 @@ bool SystemWorker::runCommand(const QString &cmd) {
 
 void SystemWorker::run() {
     emit logMessage("\xF0\x9F\x9A\x80 Starting system installation...");
+
     QString isoPath = "/mnt/archlinux.iso";
     if (!QFile::exists(isoPath)) {
         QString tmpIso = QDir::tempPath() + "/archlinux.iso";
