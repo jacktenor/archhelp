@@ -1,6 +1,8 @@
 #include "Installwizard.h"
 #include "installerworker.h"
 #include "systemworker.h"
+#include "partitionworker.h"
+
 #include "ui_Installwizard.h"
 #include <QFileDialog>
 #include <QMessageBox>
@@ -332,6 +334,7 @@ void Installwizard::prepareDrive(const QString &drive) {
     connect(worker, &InstallerWorker::installComplete, worker, &QObject::deleteLater);
     connect(thread, &QThread::finished, thread, &QObject::deleteLater);
 
+
     thread->start();
 }
 
@@ -365,6 +368,9 @@ void Installwizard::populatePartitionTable(const QString &drive) {
 
 void Installwizard::createDefaultPartitions(const QString &drive) {
     unmountDrive(drive);
+
+    PartitionWorker *worker = new PartitionWorker;
+    worker->setDrive(drive);
     QProcess process;
     QString device = QString("/dev/%1").arg(drive);
     QStringList cmds = {
@@ -608,13 +614,22 @@ void Installwizard::installArchBase(const QString &selectedDrive) {
     QProcess::execute("sudo", {"arch-chroot", "/mnt", "ln", "-sf", "/usr/share/zoneinfo/UTC", "/etc/localtime"});
     QProcess::execute("sudo", {"arch-chroot", "/mnt", "hwclock", "--systohc"});
 
-    // GRUB placeholder dir (if needed)
-    QProcess::execute("sudo", {"arch-chroot", "/mnt", "mkdir", "-p", "/boot/grub"});
+    QThread *thread = new QThread;
+    worker->moveToThread(thread);
 
-    QMessageBox::information(nullptr, "Success",
-                             "Base system and setup installed and configured!\nStarting Grub installation and updating next...");
+    connect(thread, &QThread::started, worker, &PartitionWorker::run);
+    connect(worker, &PartitionWorker::logMessage, this, [this](const QString &m) { appendLog(m); });
+    connect(worker, &PartitionWorker::errorOccurred, this, [this](const QString &m) {
+        QMessageBox::critical(this, "Error", m);
+    });
+    connect(worker, &PartitionWorker::finished, this, [this](const QString &drv) {
+        populatePartitionTable(drv);
+    });
+    connect(worker, &PartitionWorker::finished, thread, &QThread::quit);
+    connect(worker, &PartitionWorker::finished, worker, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
 
-    installGrub(selectedDrive);
+    thread->start();
 }
 
 void Installwizard::installGrub(const QString &drive) {
@@ -706,6 +721,7 @@ void Installwizard::on_installButton_clicked() {
 
     SystemWorker *worker = new SystemWorker;
     worker->setParameters(selectedDrive, username, password, rootPassword, desktopEnv);
+
 
     QThread *thread = new QThread;
     worker->moveToThread(thread);

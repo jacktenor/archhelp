@@ -17,11 +17,14 @@ SOURCES += \
     Installwizard.cpp \
     installerworker.cpp \
     systemworker.cpp \
+    partitionworker.cpp \
     main.cpp
 
 HEADERS += \
     Installwizard.h \
     installerworker.h \
+    systemworker.h \
+    partitionworker.h \
     systemworker.h
 
 FORMS += \
