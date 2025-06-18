@@ -24,7 +24,8 @@ HEADERS += \
     Installwizard.h \
     installerworker.h \
     systemworker.h \
-    partitionworker.h
+    partitionworker.h \
+    systemworker.h
 
 FORMS += \
     Installwizard.ui
