@@ -16,11 +16,15 @@ QMAKE_LFLAGS += -Wl,-rpath,/home/greg/openssl-3/lib64
 SOURCES += \
     Installwizard.cpp \
     installerworker.cpp \
+    systemworker.cpp \
+    partitionworker.cpp \
     main.cpp
 
 HEADERS += \
     Installwizard.h \
-    installerworker.h
+    installerworker.h \
+    systemworker.h \
+    partitionworker.h
 
 FORMS += \
     Installwizard.ui

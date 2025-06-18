@@ -82,6 +82,16 @@
      <number>0</number>
     </property>
    </widget>
+   <widget class="QPlainTextEdit" name="logView2">
+    <property name="geometry">
+     <rect>
+      <x>86</x>
+      <y>190</y>
+      <width>300</width>
+      <height>120</height>
+     </rect>
+    </property>
+   </widget>
   </widget>
   <widget class="QWizardPage" name="partitionPage">
    <widget class="QLabel" name="driveLabel">
@@ -215,6 +225,16 @@
     </property>
     <property name="text">
      <string>Prepare Drive</string>
+    </property>
+   </widget>
+   <widget class="QPlainTextEdit" name="logView3">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>310</y>
+      <width>420</width>
+      <height>50</height>
+     </rect>
     </property>
    </widget>
   </widget>
