@@ -27,20 +27,15 @@ private:
     QString selectedDrive;  // 🧠 TRACK THE CURRENT DRIVE
     QString getUserHome();
     void populateDrives(); // Populate the dropdown with available drives
-    void mountPartitions(const QString &drive);
-    // Remove the parameter from installGrubAsync since we won't need one.
-    void installGrub(const QString &drive);
     void downloadISO(QProgressBar *progressBar);
-    void installArchBase(const QString &selectedDrive);
-    void mountISO();
     void on_installButton_clicked();
     void forceUnmount(const QString &mountPoint);
     void unmountDrive(const QString &drive);
-    // Declare the methods that were missing
+    void appendLog(const QString &message);
     QStringList getAvailableDrives();        // Detect available drives
     void prepareDrive(const QString &drive);   // Prepare the selected drive
-    void populatePartitionTable(const QString &drive); // new
-    void createDefaultPartitions(const QString &drive); // new example
-};
+    void populatePartitionTable(const QString &drive);
+    void createDefaultPartitions(const QString &drive);
+}; 
 
 #endif // INSTALLWIZARD_H

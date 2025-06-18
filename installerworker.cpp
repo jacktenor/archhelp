@@ -42,9 +42,13 @@ void InstallerWorker::run() {
     };
     for (const QString &cmd : cmds) {
         process.start("/bin/bash", {"-c", cmd});
-        process.waitForFinished();
+        process.waitForFinished(-1);
+        QString stdOut = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+        QString errOut = QString::fromUtf8(process.readAllStandardError()).trimmed();
+        if (!stdOut.isEmpty())
+            emit logMessage(stdOut);
         if (process.exitCode() != 0) {
-            emit errorOccurred("Partition error: " + cmd);
+            emit errorOccurred(QString("Partition error: %1\n%2").arg(cmd, errOut));
             return;
         }
     }
@@ -89,6 +93,9 @@ void InstallerWorker::run() {
     process.start("sudo", {"mount", bootPart, "/mnt/boot"});
     process.waitForFinished();
 
+    // Copy ISO for later installation if available
+    process.start("/bin/bash", {"-c", "if [ -f /tmp/archlinux.iso ]; then sudo cp /tmp/archlinux.iso /mnt/archlinux.iso; fi"});
+    process.waitForFinished();
 
     emit logMessage("✅ Drive is ready.");
     emit installComplete();
