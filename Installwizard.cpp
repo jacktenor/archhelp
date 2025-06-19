@@ -817,7 +817,7 @@ void Installwizard::on_installButton_clicked() {
 
     QProcess process;
 
-    process.start("/bin/bash", QStringList() << "-c" << " sudo umount -Rfl /mn/archiso");
+    process.start("/bin/bash", QStringList() << "-c" << " sudo umount -Rfl /mnt/archiso");
 
 
 
