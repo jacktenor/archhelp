@@ -205,11 +205,17 @@ static QString getPartitionTableType(const QString &drive) {
 static bool hasBiosBootPartition(const QString &drive) {
     QProcess p;
     QString device = QString("/dev/%1").arg(drive);
-    p.start("lsblk", QStringList() << "-o" << "NAME,PARTTYPE" << "-nr" << device);
+    p.start("lsblk", QStringList() << "-o" << "PARTFLAGS,PARTTYPE" << "-nr" << device);
     p.waitForFinished();
     QString out = QString(p.readAllStandardOutput());
     for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
-        if (line.contains("21686148-6449-6E6F-744E-656564454649", Qt::CaseInsensitive))
+        QStringList cols = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (cols.size() < 2)
+            continue;
+        QString flags = cols[0];
+        QString type = cols[1];
+        if (flags.contains("bios_grub") ||
+            type.contains("21686148-6449-6E6F-744E-656564454649", Qt::CaseInsensitive))
             return true;
     }
     return false;
@@ -634,6 +640,7 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
             QSet<QString> beforeParts;
             for (const QString &item : beforeList)
                 beforeParts.insert(item);
+
 
             QSet<QString> beforeParts = QSet<QString>::fromList(QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts));
 
