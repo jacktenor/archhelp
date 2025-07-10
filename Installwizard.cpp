@@ -637,6 +637,9 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
             beforeProc.start("lsblk", QStringList() << "-nr" << "-o" << "NAME" << QString("/dev/%1").arg(selectedDrive));
             beforeProc.waitForFinished();
             QStringList beforeList = QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+            // Convert list of partition names into a set for fast lookup
+            QSet<QString> beforeParts(beforeList.cbegin(), beforeList.cend());
+
             QSet<QString> beforeParts;
             for (const QString &item : beforeList)
                 beforeParts.insert(item);
