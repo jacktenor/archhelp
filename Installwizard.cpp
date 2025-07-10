@@ -630,6 +630,11 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
             QProcess beforeProc;
             beforeProc.start("lsblk", QStringList() << "-nr" << "-o" << "NAME" << QString("/dev/%1").arg(selectedDrive));
             beforeProc.waitForFinished();
+            QStringList beforeList = QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+            QSet<QString> beforeParts;
+            for (const QString &item : beforeList)
+                beforeParts.insert(item);
+
             QSet<QString> beforeParts = QSet<QString>::fromList(QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts));
 
             // 6. Delete old partition
