@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QSet>
 #include <algorithm>
 #include <unistd.h>
 
@@ -625,12 +626,18 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
 
             QString partedBin = locatePartedBinary();
 
+            // Capture partition list before modifications
+            QProcess beforeProc;
+            beforeProc.start("lsblk", QStringList() << "-nr" << "-o" << "NAME" << QString("/dev/%1").arg(selectedDrive));
+            beforeProc.waitForFinished();
+            QSet<QString> beforeParts = QSet<QString>::fromList(QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts));
+
             // 6. Delete old partition
             QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script", "rm", partNum});
             QProcess::execute("sudo", {"partprobe", QString("/dev/%1").arg(selectedDrive)});
             QProcess::execute("sudo", {"udevadm", "settle"});
 
-            // 7. Create bios_grub (1MiB), root (rest)
+            // 7. Create bios_grub (1MiB) and root (rest)
             QString biosGrubStart = QString::number(startMiB, 'f', 2) + "MiB";
             QString biosGrubEnd   = QString::number(startMiB + 1.0, 'f', 2) + "MiB";
             QString rootStart     = biosGrubEnd;
@@ -639,31 +646,46 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
             QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script",
                                        "mkpart", "primary", biosGrubStart, biosGrubEnd});
             QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script",
-                                       "set", "1", "bios_grub", "on"});
-            QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script",
                                        "mkpart", "primary", "ext4", rootStart, rootEnd});
 
             QProcess::execute("sudo", {"partprobe", QString("/dev/%1").arg(selectedDrive)});
             QProcess::execute("sudo", {"udevadm", "settle"});
 
-            // 8. Find new root partition (should be #2)
-            QProcess newRootProc;
-            newRootProc.start("lsblk", QStringList() << "-nr" << "-o" << "NAME,PARTNUM" << QString("/dev/%1").arg(selectedDrive));
-            newRootProc.waitForFinished();
-            QStringList parts = QString(newRootProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+            // 8. Determine new partitions and set bios_grub flag
+            QProcess afterProc;
+            afterProc.start("lsblk", QStringList() << "-bnr" << "-o" << "NAME,SIZE,PARTNUM" << QString("/dev/%1").arg(selectedDrive));
+            afterProc.waitForFinished();
+            QStringList lines = QString(afterProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+
+            QString biosPartNum;
             QString newRootPart;
-            for (const QString &line : parts) {
-                if (line.contains("2")) { // second partition after bios_grub
-                    newRootPart = "/dev/" + line.split(QRegularExpression("\\s+")).first();
-                    break;
-                }
+            for (const QString &l : lines) {
+                QStringList cols = l.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+                if (cols.size() < 3)
+                    continue;
+                QString name = cols.at(0);
+                if (beforeParts.contains(name))
+                    continue; // existing partition
+
+                QString sizeStr = cols.at(1);
+                bool ok = false;
+                double szMiB = sizeStr.toDouble(&ok) / 1048576.0; // bytes -> MiB
+                if (ok && qAbs(szMiB - 1.0) < 0.1)
+                    biosPartNum = cols.at(2);
+                else
+                    newRootPart = "/dev/" + name;
             }
+
+            if (!biosPartNum.isEmpty())
+                QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script",
+                                           "set", biosPartNum, "bios_grub", "on"});
+
             if (newRootPart.isEmpty()) {
                 QMessageBox::critical(this, "Partition Error", "Could not locate new root partition.");
                 return;
             }
-            // Use newRootPart as the root partition for formatting/mounting
-            myPartition = newRootPart; // Now this works!
+
+            myPartition = newRootPart; // Use new partition for formatting
         }
     }
 
