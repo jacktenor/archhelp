@@ -635,6 +635,8 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
             for (const QString &item : beforeList)
                 beforeParts.insert(item);
 
+            QSet<QString> beforeParts = QSet<QString>::fromList(QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts));
+
             // 6. Delete old partition
             QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script", "rm", partNum});
             QProcess::execute("sudo", {"partprobe", QString("/dev/%1").arg(selectedDrive)});
