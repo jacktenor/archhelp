@@ -137,6 +137,11 @@ void SystemWorker::run() {
         grubCmd = QString("sudo arch-chroot /mnt grub-install --target=i386-pc /dev/%1").arg(drive);
     }
 
+    emit logMessage(grubCmd);
+
+
+
+
     if (!runCommand(grubCmd))
         return;
     if (!runCommand("sudo arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg"))
@@ -170,6 +175,11 @@ void SystemWorker::run() {
     QString pkgCmd = QString("sudo arch-chroot /mnt pacman -Sy --noconfirm %1").arg(desktopPackages.value(desktopEnv).join(' '));
     if (!runCommand(pkgCmd))
         return;
+
+
+        emit logMessage(pkgCmd);
+
+
 
     QString dmService;
     if (desktopEnv == "GNOME") dmService = "gdm.service";

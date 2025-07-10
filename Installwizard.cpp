@@ -193,6 +193,52 @@ Installwizard::Installwizard(QWidget *parent)
           };
 }
 
+static QString getPartitionTableType(const QString &drive) {
+    QProcess p;
+    QString device = QString("/dev/%1").arg(drive);
+    p.start("lsblk", QStringList() << "-no" << "PTTYPE" << device);
+    p.waitForFinished();
+    return QString(p.readAllStandardOutput()).trimmed();
+}
+
+static bool hasBiosBootPartition(const QString &drive) {
+    QProcess p;
+    QString device = QString("/dev/%1").arg(drive);
+    p.start("lsblk", QStringList() << "-o" << "NAME,PARTTYPE" << "-nr" << device);
+    p.waitForFinished();
+    QString out = QString(p.readAllStandardOutput());
+    for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
+        if (line.contains("21686148-6449-6E6F-744E-656564454649", Qt::CaseInsensitive))
+            return true;
+    }
+    return false;
+}
+
+static bool mbrPrimaryPartitionLimitReached(const QString &drive) {
+    QProcess p;
+    QString device = QString("/dev/%1").arg(drive);
+    p.start("lsblk", QStringList() << "-o" << "TYPE" << "-nr" << device);
+    p.waitForFinished();
+    QString out = QString(p.readAllStandardOutput());
+    int count = 0;
+    for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
+        if (line.trimmed() == "part")
+            count++;
+    }
+    return count >= 4;
+}
+
+static bool waitForPartition(const QString &partPath, int timeoutSeconds = 10) {
+    QFileInfo fi(partPath);
+    int elapsed = 0;
+    while (!fi.exists() && elapsed < timeoutSeconds) {
+        QThread::sleep(1);
+        fi.refresh();
+        elapsed++;
+    }
+    return fi.exists();
+}
+
 QString Installwizard::getUserHome() {
   QString userHome;
 
@@ -235,7 +281,7 @@ static QString locatePartedBinary() {
 void Installwizard::downloadISO(QProgressBar *progressBar) {
   QNetworkAccessManager *networkManager = new QNetworkAccessManager(this);
   QUrl url(
-      "https://mirror.arizona.edu/archlinux/iso/latest/archlinux-x86_64.iso");
+      "https://mirrors.mit.edu/archlinux/iso/latest/archlinux-x86_64.iso");
   QNetworkRequest request(url);
   QNetworkReply *reply = networkManager->get(request);
 
@@ -323,7 +369,6 @@ void Installwizard::installDependencies() {
       "dosfstools", // mkfs.vfat
       "e2fsprogs",  // mkfs.ext4
       "squashfs-tools",
-      "os-prober",
       "wget" // for downloading bootstrap if needed
   };
 
@@ -481,66 +526,213 @@ void Installwizard::prepareDrive(const QString &drive) {
   thread->start();
 }
 
+bool shrinkPartitionForBiosBoot(const QString &partition, const QString &drive, int partNum) {
+    // 1 MiB = 2048 sectors (512 bytes each)
+    QProcess proc;
+    proc.start("lsblk", QStringList() << "-bnro" << "START,SIZE" << partition);
+    proc.waitForFinished();
+    QStringList vals = QString(proc.readAllStandardOutput())
+                           .split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+    if (vals.size() < 2) return false;
+    long long startB = vals.at(0).toLongLong();
+    long long sizeB = vals.at(1).toLongLong();
+    long long startMiB = startB / (1024 * 1024);
+    long long endMiB = startMiB + sizeB / (1024 * 1024);
+
+    // Shrink by 2 MiB just to be safe
+    long long newStartMiB = startMiB + 2; // leave 2MiB for alignment
+    long long newSizeMiB = endMiB - newStartMiB;
+
+    // 1. Filesystem check
+    if (QProcess::execute("sudo", {"e2fsck", "-f", partition}) != 0)
+        return false;
+
+    // 2. Shrink filesystem
+    if (QProcess::execute("sudo", {"resize2fs", partition, QString("%1M").arg(newSizeMiB)}) != 0)
+        return false;
+
+    // 3. Move start of partition (requires parted >= 3.2)
+    QString partedBin = locatePartedBinary();
+    if (QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(drive), "--script",
+                                   "move", QString::number(partNum), QString("%1MiB").arg(newStartMiB)}) != 0)
+        return false;
+
+    // 4. Create 1MiB partition at the beginning, type EF02
+    if (QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(drive), "--script",
+                                   "mkpart", "primary", "1MiB", QString("%1MiB").arg(newStartMiB),
+                                   "set", "1", "bios_grub", "on"}) != 0)
+        return false;
+
+    // 5. Refresh partition table
+    QProcess::execute("sudo", {"partprobe", QString("/dev/%1").arg(drive)});
+    QProcess::execute("sudo", {"udevadm", "settle"});
+    QThread::sleep(1);
+
+    return true;
+}
+
 void Installwizard::prepareExistingPartition(const QString &partition) {
-  // Derive the parent drive so grub-install knows where to install
-  QProcess proc;
-  proc.start("lsblk", QStringList() << "-nr" << "-o" << "PKNAME" << partition);
-  proc.waitForFinished();
-  QString parent = QString(proc.readAllStandardOutput()).trimmed();
-  if (!parent.isEmpty())
-    selectedDrive = parent;
+    QString myPartition = partition; // NEW: create a local copy!
 
-  InstallerWorker *worker = new InstallerWorker;
-  worker->setDrive(selectedDrive);
-  worker->setMode(InstallerWorker::InstallMode::UsePartition);
-  worker->setTargetPartition(partition);
+    // Derive the parent drive so grub-install knows where to install
+    QProcess proc;
+    proc.start("lsblk", QStringList() << "-nr" << "-o" << "PKNAME" << myPartition);
+    proc.waitForFinished();
+    QString parent = QString(proc.readAllStandardOutput()).trimmed();
+    if (!parent.isEmpty())
+        selectedDrive = parent;
 
-  QThread *thread = new QThread;
-  worker->moveToThread(thread);
+    // --- NEW CHECKS: Partition table and BIOS boot partition ---
+    QString tableType = getPartitionTableType(selectedDrive);
 
-  connect(thread, &QThread::started, worker, &InstallerWorker::run);
-  connect(worker, &InstallerWorker::logMessage, this,
-          [this](const QString &msg) { appendLog(msg); });
-  connect(worker, &InstallerWorker::errorOccurred, this,
-          [this](const QString &msg) {
-            QMessageBox::critical(this, "Error", msg);
-          });
-  connect(worker, &InstallerWorker::installComplete, thread, &QThread::quit);
-  connect(worker, &InstallerWorker::installComplete, this, [this]() {
-    appendLog("\xE2\x9C\x85 Partition prepared.");
-    setWizardButtonEnabled(QWizard::NextButton, true);
-  });
-  connect(worker, &InstallerWorker::installComplete, worker, &QObject::deleteLater);
-  connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    // If we're doing a BIOS (not EFI) install, check for BIOS boot partition if GPT
+    if (!efiInstall) {
+        if (tableType == "gpt" && !efiInstall && !hasBiosBootPartition(selectedDrive)) {
+            // 1. Ask for user confirmation
+            if (QMessageBox::question(this, "BIOS Boot Partition Needed",
+                                      "This drive uses GPT partitioning and you are installing in BIOS (legacy) mode. "
+                                      "GRUB requires a tiny BIOS Boot Partition (1MiB, type EF02). Your chosen partition will be DELETED, "
+                                      "and two new partitions (bios_grub + root) will be created in its place. ALL DATA ON THIS PARTITION WILL BE ERASED.\n\n"
+                                      "Continue?") != QMessageBox::Yes)
+                return;
 
-  thread->start();
+            // 2. Unmount partition (safe even if not mounted)
+            QProcess::execute("sudo", {"umount", partition});
+
+            // 3. Get partition number and start/end positions
+            QProcess infoProc;
+            infoProc.start("lsblk", QStringList() << "-nr" << "-o" << "NAME,PARTNUM,START,SIZE" << partition);
+            infoProc.waitForFinished();
+            QStringList infoVals = QString(infoProc.readAllStandardOutput()).split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+            if (infoVals.size() < 4) {
+                QMessageBox::critical(this, "Partition Error", "Could not get partition info.");
+                return;
+            }
+            QString partName = infoVals[0];
+            QString partNum = infoVals[1];
+            long long partStartSector = infoVals[2].toLongLong();
+            long long partSizeSector = infoVals[3].toLongLong();
+
+            // 4. Get sector size (needed for parted)
+            QProcess sectorProc;
+            sectorProc.start("cat", QStringList() << ("/sys/block/" + selectedDrive + "/queue/hw_sector_size"));
+            sectorProc.waitForFinished();
+            long long sectorSize = QString(sectorProc.readAllStandardOutput()).trimmed().toLongLong();
+
+            // 5. Calculate start and end in MiB
+            double startMiB = (double)partStartSector * sectorSize / 1048576.0;
+            double endMiB   = startMiB + ((double)partSizeSector * sectorSize / 1048576.0);
+
+            QString partedBin = locatePartedBinary();
+
+            // 6. Delete old partition
+            QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script", "rm", partNum});
+            QProcess::execute("sudo", {"partprobe", QString("/dev/%1").arg(selectedDrive)});
+            QProcess::execute("sudo", {"udevadm", "settle"});
+
+            // 7. Create bios_grub (1MiB), root (rest)
+            QString biosGrubStart = QString::number(startMiB, 'f', 2) + "MiB";
+            QString biosGrubEnd   = QString::number(startMiB + 1.0, 'f', 2) + "MiB";
+            QString rootStart     = biosGrubEnd;
+            QString rootEnd       = QString::number(endMiB, 'f', 2) + "MiB";
+
+            QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script",
+                                       "mkpart", "primary", biosGrubStart, biosGrubEnd});
+            QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script",
+                                       "set", "1", "bios_grub", "on"});
+            QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script",
+                                       "mkpart", "primary", "ext4", rootStart, rootEnd});
+
+            QProcess::execute("sudo", {"partprobe", QString("/dev/%1").arg(selectedDrive)});
+            QProcess::execute("sudo", {"udevadm", "settle"});
+
+            // 8. Find new root partition (should be #2)
+            QProcess newRootProc;
+            newRootProc.start("lsblk", QStringList() << "-nr" << "-o" << "NAME,PARTNUM" << QString("/dev/%1").arg(selectedDrive));
+            newRootProc.waitForFinished();
+            QStringList parts = QString(newRootProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+            QString newRootPart;
+            for (const QString &line : parts) {
+                if (line.contains("2")) { // second partition after bios_grub
+                    newRootPart = "/dev/" + line.split(QRegularExpression("\\s+")).first();
+                    break;
+                }
+            }
+            if (newRootPart.isEmpty()) {
+                QMessageBox::critical(this, "Partition Error", "Could not locate new root partition.");
+                return;
+            }
+            // Use newRootPart as the root partition for formatting/mounting
+            myPartition = newRootPart; // Now this works!
+        }
+    }
+
+    // --- END NEW CHECKS ---
+
+    InstallerWorker *worker = new InstallerWorker;
+    worker->setDrive(selectedDrive);
+    worker->setMode(InstallerWorker::InstallMode::UsePartition);
+
+    // I added this here?
+    worker->setTargetPartition(myPartition);
+
+    QThread *thread = new QThread;
+    worker->moveToThread(thread);
+
+    connect(thread, &QThread::started, worker, &InstallerWorker::run);
+    connect(worker, &InstallerWorker::logMessage, this,
+            [this](const QString &msg) { appendLog(msg); });
+    connect(worker, &InstallerWorker::errorOccurred, this,
+            [this](const QString &msg) {
+                QMessageBox::critical(this, "Error", msg);
+            });
+    connect(worker, &InstallerWorker::installComplete, thread, &QThread::quit);
+    connect(worker, &InstallerWorker::installComplete, this, [this]() {
+        appendLog("\xE2\x9C\x85 Partition prepared.");
+        setWizardButtonEnabled(QWizard::NextButton, true);
+    });
+
+    appendLog("Deleted old partition and created bios_grub and root partitions automatically.");
+
+    connect(worker, &InstallerWorker::installComplete, worker, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+    thread->start();
 }
 
 void Installwizard::prepareFreeSpace(const QString &drive) {
-  selectedDrive = drive;
-  InstallerWorker *worker = new InstallerWorker;
-  worker->setDrive(drive);
-  worker->setMode(InstallerWorker::InstallMode::UseFreeSpace);
+    selectedDrive = drive;
 
-  QThread *thread = new QThread;
-  worker->moveToThread(thread);
+    // --- NEW CHECK: MBR primary partition limit ---
+    QString tableType = getPartitionTableType(drive);
+    if (tableType == "dos" && mbrPrimaryPartitionLimitReached(drive)) {
+        QMessageBox::critical(this, "Partition Error",
+                              "MBR (msdos) disks allow only 4 primary partitions. "
+                              "Cannot create a new partition. You need to delete a partition or use GPT for more.");
+        return;
+    }
 
-  connect(thread, &QThread::started, worker, &InstallerWorker::run);
-  connect(worker, &InstallerWorker::logMessage, this,
-          [this](const QString &msg) { appendLog(msg); });
-  connect(worker, &InstallerWorker::errorOccurred, this,
-          [this](const QString &msg) {
-            QMessageBox::critical(this, "Error", msg);
-          });
-  connect(worker, &InstallerWorker::installComplete, thread, &QThread::quit);
-  connect(worker, &InstallerWorker::installComplete, this, [this]() {
-    appendLog("\xE2\x9C\x85 Free space partition created.");
-    setWizardButtonEnabled(QWizard::NextButton, true);
-  });
-  connect(worker, &InstallerWorker::installComplete, worker, &QObject::deleteLater);
-  connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    InstallerWorker *worker = new InstallerWorker;
+    worker->setDrive(drive);
+    worker->setMode(InstallerWorker::InstallMode::UseFreeSpace);
 
-  thread->start();
+    QThread *thread = new QThread;
+    worker->moveToThread(thread);
+
+    connect(thread, &QThread::started, worker, &InstallerWorker::run);
+    connect(worker, &InstallerWorker::logMessage, this,
+            [this](const QString &msg) { appendLog(msg); });
+    connect(worker, &InstallerWorker::errorOccurred, this,
+            [this](const QString &msg) { QMessageBox::critical(this, "Error", msg); });
+    connect(worker, &InstallerWorker::installComplete, thread, &QThread::quit);
+    connect(worker, &InstallerWorker::installComplete, this, [this]() {
+        appendLog("\xE2\x9C\x85 Free space partition created.");
+        setWizardButtonEnabled(QWizard::NextButton, true);
+    });
+    connect(worker, &InstallerWorker::installComplete, worker, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+    thread->start();
 }
 
 void Installwizard::populatePartitionTable(const QString &drive) {
@@ -719,6 +911,30 @@ void Installwizard::splitPartitionForEfi(const QString &partition) {
   populatePartitionTable(drive);
   appendLog("\xE2\x9C\x85 Partition adjusted for EFI.");
   setWizardButtonEnabled(QWizard::NextButton, true);
+}
+
+
+void formatRootPartitionWithCheck(const QString &rootPart, const QString &device, std::function<void(const QString&)> appendLog) {
+    // Refresh kernel's partition table
+    QProcess::execute("sudo", {"partprobe", device});
+    QProcess::execute("sudo", {"udevadm", "settle"});
+    QThread::sleep(1);
+
+    // Wait for root partition to appear
+    if (!waitForPartition(rootPart)) {
+        QMessageBox::critical(nullptr, "Partition Error", "Newly created partition did not appear in time!");
+        return;
+    }
+
+    // Format ext4
+    int code = QProcess::execute("sudo", {"mkfs.ext4", "-F", rootPart});
+    if (code != 0) {
+        QMessageBox::critical(nullptr, "Partition Error", "Failed to format partition as ext4.");
+        return;
+    }
+    QProcess::execute("sudo", {"e2fsck", "-f", rootPart});
+
+    appendLog("Root partition formatted and checked successfully.");
 }
 
 void Installwizard::on_installButton_clicked() {

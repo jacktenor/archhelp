@@ -43,7 +43,7 @@
       <family>Noto Sans</family>
       <pointsize>12</pointsize>
       <italic>false</italic>
-      <weight>63</weight>
+      <fontweight>DemiBold</fontweight>
      </font>
     </property>
     <property name="styleSheet">
@@ -90,6 +90,12 @@
       <width>420</width>
       <height>150</height>
      </rect>
+    </property>
+    <property name="readOnly">
+     <bool>true</bool>
+    </property>
+    <property name="backgroundVisible">
+     <bool>false</bool>
     </property>
    </widget>
    <widget class="QLabel" name="label_6">
@@ -200,9 +206,9 @@
     <property name="styleSheet">
      <string notr="true">font: 600 12pt &quot;Noto Sans&quot;;</string>
     </property>
-   <property name="text">
-    <string>Select a drive for installation</string>
-   </property>
+    <property name="text">
+     <string>Select a drive for installation</string>
+    </property>
     <property name="alignment">
      <set>Qt::AlignmentFlag::AlignCenter</set>
     </property>
@@ -243,6 +249,9 @@
       <width>420</width>
       <height>125</height>
      </rect>
+    </property>
+    <property name="readOnly">
+     <bool>true</bool>
     </property>
    </widget>
    <widget class="QLabel" name="labelInstallMode">
@@ -306,6 +315,9 @@
       <width>420</width>
       <height>150</height>
      </rect>
+    </property>
+    <property name="readOnly">
+     <bool>true</bool>
     </property>
    </widget>
    <widget class="QComboBox" name="comboDesktopEnvironment">
