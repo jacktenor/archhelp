@@ -43,7 +43,7 @@
       <family>Noto Sans</family>
       <pointsize>12</pointsize>
       <italic>false</italic>
-      <fontweight>DemiBold</fontweight>
+      <weight>63</weight>
      </font>
     </property>
     <property name="styleSheet">
