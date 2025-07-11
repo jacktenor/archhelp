@@ -202,18 +202,32 @@ static QString getPartitionTableType(const QString &drive) {
     return QString(p.readAllStandardOutput()).trimmed();
 }
 
-static bool hasBiosBootPartition(const QString &drive) {
+static bool hasBiosBootPartition(const QString &drive,
+                                 const QString &excludePart = QString()) {
     QProcess p;
     QString device = QString("/dev/%1").arg(drive);
-    p.start("lsblk", QStringList() << "-o" << "PARTFLAGS,PARTTYPE" << "-nr" << device);
+    p.start("lsblk",
+            QStringList() << "-o" << "NAME,PARTFLAGS,PARTTYPE" << "-nr" << device);
     p.waitForFinished();
     QString out = QString(p.readAllStandardOutput());
     for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
         QStringList cols = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (cols.size() < 3)
+            continue;
+        QString name = cols.at(0);
+        if (!excludePart.isEmpty() && name == excludePart)
+            continue;
+        QString flags = cols.at(1);
+        QString type = cols.at(2);
+
         if (cols.size() < 2)
             continue;
-        QString flags = cols[0];
-        QString type = cols[1];
+       
+        QString name = cols.at(0);
+        if (!excludePart.isEmpty() && name == excludePart)
+            continue;
+        QString flags = cols.at(1);
+        QString type = cols.at(2);
         if (flags.contains("bios_grub") ||
             type.contains("21686148-6449-6E6F-744E-656564454649", Qt::CaseInsensitive))
             return true;
@@ -594,7 +608,11 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
 
     // If we're doing a BIOS (not EFI) install, check for BIOS boot partition if GPT
     if (!efiInstall) {
-        if (tableType == "gpt" && !efiInstall && !hasBiosBootPartition(selectedDrive)) {
+        QString partBase = QFileInfo(partition).fileName();
+        QString partBase = QFileInfo(partition).fileName();
+        if (tableType == "gpt" &&
+            !efiInstall &&
+            !hasBiosBootPartition(selectedDrive, partBase)) {
             // 1. Ask for user confirmation
             if (QMessageBox::question(this, "BIOS Boot Partition Needed",
                                       "This drive uses GPT partitioning and you are installing in BIOS (legacy) mode. "
@@ -639,6 +657,7 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
             QStringList beforeList = QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
             // Convert list of partition names into a set for fast lookup
             QSet<QString> beforeParts(beforeList.cbegin(), beforeList.cend());
+
 
             QSet<QString> beforeParts;
             for (const QString &item : beforeList)
