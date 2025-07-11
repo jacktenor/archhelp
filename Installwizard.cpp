@@ -219,6 +219,15 @@ static bool hasBiosBootPartition(const QString &drive,
             continue;
         QString flags = cols.at(1);
         QString type = cols.at(2);
+
+        if (cols.size() < 2)
+            continue;
+       
+        QString name = cols.at(0);
+        if (!excludePart.isEmpty() && name == excludePart)
+            continue;
+        QString flags = cols.at(1);
+        QString type = cols.at(2);
         if (flags.contains("bios_grub") ||
             type.contains("21686148-6449-6E6F-744E-656564454649", Qt::CaseInsensitive))
             return true;
@@ -600,6 +609,7 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
     // If we're doing a BIOS (not EFI) install, check for BIOS boot partition if GPT
     if (!efiInstall) {
         QString partBase = QFileInfo(partition).fileName();
+        QString partBase = QFileInfo(partition).fileName();
         if (tableType == "gpt" &&
             !efiInstall &&
             !hasBiosBootPartition(selectedDrive, partBase)) {
@@ -647,6 +657,14 @@ void Installwizard::prepareExistingPartition(const QString &partition) {
             QStringList beforeList = QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
             // Convert list of partition names into a set for fast lookup
             QSet<QString> beforeParts(beforeList.cbegin(), beforeList.cend());
+
+
+            QSet<QString> beforeParts;
+            for (const QString &item : beforeList)
+                beforeParts.insert(item);
+
+
+            QSet<QString> beforeParts = QSet<QString>::fromList(QString(beforeProc.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts));
 
             // 6. Delete old partition
             QProcess::execute("sudo", {partedBin, QString("/dev/%1").arg(selectedDrive), "--script", "rm", partNum});
